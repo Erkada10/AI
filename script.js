@@ -2102,3 +2102,110 @@ function renderCodexSaved(sidebar,detail){
     div.addEventListener('click',()=>{viewState.savedSelectedId=id;renderCodex();});
     sidebar.appendChild(div);
   }
+    if(org){modules=normalizeModules(org);}
+  else{
+    const rec=world.organismArchive.get(id);
+    const data=getAncestorData(id);
+    if(!data||!rec){detail.innerHTML='<div class="codex-empty">Нет данных</div>';return;}
+    modules=data.modules.map((m,i)=>{const def=RC[m.type];return{idx:i,type:m.type,def,color:m.color,radius:m.radius,offsetX:m.offsetX,offsetY:m.offsetY,angle:m.angle,nameRu:def?def.nameRu:m.type,role:def?def.role:'core',hp:def?def.hp:0,maxHp:def?def.hp:1,stage:'ok'};});
+    org=buildStatsFromArchive(rec);org.id=id;
+  }
+  const mt=document.createElement('div');
+  mt.className='codex-group-title';mt.textContent='Модули';sidebar.appendChild(mt);
+  renderModuleList(sidebar,modules,selIdx,(idx)=>{viewState.codexModIdx[vk]=idx;renderCodex();});
+  renderOrganismPreviewAndInfo(detail,org,modules,selIdx,(idx)=>{viewState.codexModIdx[vk]=(idx===viewState.codexModIdx[vk])?null:idx;renderCodex();});
+}
+
+/* ================= ANCESTRY ================= */
+function getAncestorData(orgId){
+  if(ancestorCache.has(orgId))return ancestorCache.get(orgId);
+  if(!world)return null;
+  const rec=world.organismArchive.get(orgId);
+  if(!rec)return null;
+  const g=new Genome(rec.anchorType);
+  g.moduleNames=rec.moduleTypes.slice();g.familyName=rec.familyName;
+  const temp=Object.create(Organism.prototype);
+  temp.genome=g;temp.modules=[];temp._statCache={};temp._statCacheT=0;
+  temp.rebuildBody();
+  const data={id:rec.id,generation:rec.generation,anchorType:rec.anchorType,familyName:rec.familyName,species:rec.species,diet:rec.diet,dead:rec.dead,deathReason:rec.deathReason||'',modules:temp.modules.map(m=>({type:m.type,color:m.def.color,shape:m.def.shape,radius:m.radius,offsetX:m.offsetX,offsetY:m.offsetY,angle:m.angle})),boundingRadius:temp.boundingRadius};
+  ancestorCache.set(orgId,data);
+  return data;
+}
+function getAncestryChain(startId){
+  if(!world)return[];
+  const chain=[];const visited=new Set();
+  let cur=startId;
+  while(cur&&!visited.has(cur)){
+    visited.add(cur);
+    const rec=world.organismArchive.get(cur);
+    if(!rec)break;
+    chain.push(rec);cur=rec.parentId;
+  }
+  chain.reverse();return chain;
+}
+function renderAncestry(){
+  if(!followedOrg){el('ancestry-graph').innerHTML='<div class="codex-empty">Никто не выбран</div>';return;}
+  const chain=getAncestryChain(followedOrg.id);
+  const graph=el('ancestry-graph');graph.innerHTML='';
+  if(!chain.length){graph.innerHTML='<div class="codex-empty">Нет данных</div>';return;}
+  if(!viewState.ancestrySelectedId||!chain.find(r=>r.id===viewState.ancestrySelectedId))viewState.ancestrySelectedId=followedOrg.id;
+  chain.forEach((rec,idx)=>{
+    const card=document.createElement('div');
+    card.className='anc-card'+(rec.id===viewState.ancestrySelectedId?' current':'');
+    const specCls=SPECIES_CLASS[rec.species]||'basic';
+    const dietCls=rec.dead?'dead':(DIET_CLASS[rec.diet]||'');
+    card.innerHTML=`<span class="anc-gen">П${rec.generation}</span><div class="anc-body"><div><b>#${rec.id}</b> · ${rec.familyName}</div><div style="font-size:9px;color:#8ab89a;margin-top:2px"><span class="species-badge ${specCls}" style="margin:0;padding:0 4px;font-size:9px">${rec.species||'—'}</span><span class="diet-badge ${dietCls}" style="margin-left:3px;padding:0 4px;font-size:9px">${DIET_NAMES[rec.diet]||rec.diet||'—'}</span></div><div style="color:${rec.dead?'#a06060':'#7ac88a'};font-size:9px">${rec.dead?'✝ погиб':'жив'} · ${rec.moduleTypes.length} мод.</div></div>`;
+    card.addEventListener('click',()=>{viewState.ancestrySelectedId=rec.id;viewState.ancestryModIdx=null;renderAncestry();});
+    graph.appendChild(card);
+    if(idx<chain.length-1){const arrow=document.createElement('div');arrow.className='anc-arrow';arrow.textContent='↓';graph.appendChild(arrow);}
+  });
+  const sr=world.organismArchive.get(viewState.ancestrySelectedId);
+  if(sr){
+    const data=getAncestorData(sr.id);
+    if(data){
+      const mods=data.modules.map((m,i)=>{const def=RC[m.type];return{idx:i,type:m.type,def,color:m.color,radius:m.radius,offsetX:m.offsetX,offsetY:m.offsetY,angle:m.angle,nameRu:def?def.nameRu:m.type,role:def?def.role:'core',hp:def?def.hp:0,maxHp:def?def.hp:1,stage:'ok'};});
+      const sep=document.createElement('div');
+      sep.className='codex-group-title';sep.style.marginTop='10px';sep.textContent='Модули';
+      graph.appendChild(sep);
+      renderModuleList(graph,mods,viewState.ancestryModIdx,(idx)=>{viewState.ancestryModIdx=idx;renderAncestry();});
+    }
+  }
+  renderAncestorDetail(viewState.ancestrySelectedId);
+}
+function renderAncestorDetail(id){
+  const detail=el('ancestry-detail');detail.innerHTML='';
+  const org=getOrganismById(id);
+  const rec=world?world.organismArchive.get(id):null;
+  const data=getAncestorData(id);
+  if(!org&&(!data||!rec)){detail.innerHTML='<div class="codex-empty">Нет данных</div>';return;}
+  let modules,boundingR,infoHtml;
+  let orgForRadar = org; 
+  if(org){
+    modules=normalizeModules(org);boundingR=org.boundingRadius;infoHtml=buildOrganismInfoHtml(org);
+  } else {
+    modules=data.modules.map((m,i)=>{const def=RC[m.type];return{idx:i,type:m.type,def,color:m.color,radius:m.radius,offsetX:m.offsetX,offsetY:m.offsetY,angle:m.angle,nameRu:def?def.nameRu:m.type,role:def?def.role:'core',hp:def?def.hp:0,maxHp:def?def.hp:1,stage:'ok'};});
+    boundingR=data.boundingRadius;
+    orgForRadar=buildStatsFromArchive(rec);orgForRadar.id=id;
+    infoHtml=buildOrganismInfoHtml(orgForRadar);
+  }
+  const pw=document.createElement('div');pw.className='codex-followed-preview';
+  const cv=document.createElement('canvas');pw.appendChild(cv);detail.appendChild(pw);
+  drawModulesPreview(cv,modules,viewState.ancestryModIdx,boundingR,(idx)=>{viewState.ancestryModIdx=(idx===viewState.ancestryModIdx)?null:idx;renderAncestry();});
+  if(viewState.ancestryModIdx!==null&&viewState.ancestryModIdx!==undefined){
+    const mod=modules.find(m=>m.idx===viewState.ancestryModIdx);
+    if(mod){const mi=document.createElement('div');mi.className='module-info-panel';mi.innerHTML=renderModuleInfoHtml(mod.type);detail.appendChild(mi);}
+  }
+  const infoDiv=document.createElement('div');infoDiv.className='codex-followed-info';
+  infoDiv.innerHTML=infoHtml;detail.appendChild(infoDiv);
+  
+  renderRadarChart(infoDiv, orgForRadar);
+  
+  if(org)bindOrganismActions(infoDiv,org);
+}
+
+/* ================= BOOT ================= */
+window.addEventListener('DOMContentLoaded',()=>{
+  setupMenu();
+  setupControls();
+  el('menu').style.display='flex';
+});
