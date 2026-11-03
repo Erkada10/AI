@@ -2,68 +2,125 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="description" content="R-Evolution — симулятор эволюции в браузере. Наблюдай, как организмы развиваются сами: мутации, хищники, травоядные, семейства, ауры и боевая система на уровне модулей.">
-<meta name="theme-color" content="#0a1525">
-<meta property="og:title" content="R-Evolution — симулятор эволюции">
-<meta property="og:description" content="Браузерный симулятор эволюции: организмы, модули, семейства, мутации, бой по модулям.">
-<meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧬</text></svg>">
-<title>R-Evolution — Симулятор эволюции</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>R-Evolution</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="world"></canvas>
 
 <div id="hud">
-  <div>Организмов: <span class="v" id="s-pop">0</span> <span id="s-popmax" style="color:#5a7fa0">/0</span></div>
-  <div>Поколение: <span class="v" id="s-gen">0</span></div>
-  <div>Время: <span class="v" id="s-time">0</span></div>
-  <div>Ср. прочность: <span class="v" id="s-hp">0%</span></div>
-  <div>Мутаций: <span class="v" id="s-mut">0</span></div>
-  <div>Хищники: <span class="v" id="s-carn">0</span></div>
-  <div>Травоядные: <span class="v" id="s-herb">0</span></div>
-  <div>Всеядные: <span class="v" id="s-omni">0</span></div>
-  <div>Еда: <span class="v" id="s-food">0</span></div>
-  <div>Чемпион: <span class="v" id="s-champ">—</span></div>
-  <div>Сезон: <span class="v" id="s-season">—</span></div>
+  <div class="hud-row"><span>Орг.</span><span class="v"><span id="s-pop">0</span><span id="s-popmax" style="color:#5a7a62">/0</span></span></div>
+  <div class="hud-row"><span>Время</span><span class="v" id="s-time">0</span></div>
+  <div class="hud-row"><span>Прочн.</span><span class="v" id="s-hp">0%</span></div>
+  <div class="hud-row"><span>Еда</span><span class="v" id="s-food">0</span></div>
+  <div class="hud-row"><span>Пок.</span><span class="v" id="s-gen">0</span></div>
+  <div class="hud-row"><span>🔴 Хищ.</span><span class="v" id="s-carn">0</span></div>
+  <div class="hud-row"><span>🟢 Трав.</span><span class="v" id="s-herb">0</span></div>
+  <div class="hud-row"><span>🟡 Всеяд.</span><span class="v" id="s-omni">0</span></div>
 </div>
 
-<div id="follow-panel">
-  <span class="close" id="follow-close">✕</span>
-  <h3 id="f-title">Организм</h3>
-  <div id="f-info"></div>
-  <div id="f-mods" style="margin-top:6px"></div>
-  <div style="font-size:10px;color:#5a7fa0;margin-top:6px;text-align:center">наведи на модуль — подсветится на теле</div>
-</div>
-
-<div class="legend">
-  <span style="background:#4f4"></span>целое
-  <span style="background:#fa4"></span>повреждено
-  <span style="background:#f44"></span>сломано
+<div id="follow-indicator" style="display:none">
+  <div class="fi-main"><span id="fi-id">—</span><span id="fi-diet" class="diet-badge">—</span></div>
+  <div class="fi-sub" id="fi-sub">—</div>
+  <div class="fi-buttons">
+    <button id="fi-details" title="Справочник">📖</button>
+    <button id="fi-unfollow" title="Отмена">✕</button>
+  </div>
 </div>
 
 <div id="controls">
   <button id="btn-pause" title="Пауза">⏸</button>
-  <button id="btn-speed1" class="active">×1</button>
-  <button id="btn-speed2">×2</button>
-  <button id="btn-speed4">×4</button>
-  <button id="btn-catalog" title="Каталог модулей">📖</button>
-  <button id="btn-leaders" title="Таблица лидеров">🏆</button>
+  <div class="speed-dropdown">
+    <button id="btn-speed" class="active" title="Скорость">×1 ▾</button>
+    <div class="speed-menu" id="speed-menu">
+      <button data-speed="1">×1</button>
+      <button data-speed="2">×2</button>
+      <button data-speed="4">×4</button>
+      <button data-speed="8">×8</button>
+    </div>
+  </div>
+  <button id="btn-search" title="Поиск">🔍</button>
+  <button id="btn-codex" title="Справочник">📖</button>
+  <button id="btn-filter" title="Фильтр">🎯</button>
+  <button id="btn-settings" title="Настройки">⚙</button>
+  <button id="btn-hide-hud" title="Скрыть">👁</button>
   <button id="btn-restart" title="Рестарт">↻</button>
 </div>
+<button id="btn-show-hud" style="display:none" title="Показать">👁</button>
 
-<div id="catalog-panel" class="overlay-panel">
-  <div class="container">
-    <h2>КАТАЛОГ R-МОДУЛЕЙ <span class="close-btn" data-close="catalog">✕</span></h2>
-    <div id="catalog-content"></div>
+<div id="toast"></div>
+
+<div id="search-panel" class="overlay-panel">
+  <div class="container" style="max-width:480px">
+    <h2>ПОИСК <span class="close-btn" id="search-close">✕</span></h2>
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="ID, семейство, вид, модуль…">
+      <button id="search-go">Найти</button>
+    </div>
+    <div id="search-results"></div>
   </div>
 </div>
 
-<div id="leaderboard-panel" class="overlay-panel">
-  <div class="container">
-    <h2>ТАБЛИЦА ЛИДЕРОВ <span class="close-btn" data-close="leaderboard">✕</span></h2>
-    <div id="leaderboard-content"></div>
+<div id="codex-panel" class="overlay-panel">
+  <div class="container codex-container">
+    <h2>СПРАВОЧНИК <span class="close-btn" id="codex-close">✕</span></h2>
+    <div class="codex-tabs">
+      <button class="codex-tab active" data-tab="modules">Модули</button>
+      <button class="codex-tab" data-tab="combos">Соединения</button>
+      <button class="codex-tab" data-tab="families">Семейства</button>
+      <button class="codex-tab" data-tab="species">Виды</button>
+      <button class="codex-tab" data-tab="tactics">Тактики</button>
+      <button class="codex-tab" data-tab="genepool">Генофонд</button>
+      <button class="codex-tab" data-tab="leaders">Лидеры</button>
+      <button class="codex-tab" data-tab="world">Мир</button>
+      <button class="codex-tab" data-tab="followed">Следящий</button>
+      <button class="codex-tab" data-tab="saved">Сохр.</button>
+    </div>
+    <div class="codex-body" id="codex-body">
+      <div class="codex-sidebar" id="codex-sidebar"></div>
+      <div class="codex-detail" id="codex-detail"></div>
+    </div>
+  </div>
+</div>
+
+<div id="ancestry-panel" class="overlay-panel">
+  <div class="container" style="max-width:1000px">
+    <h2>ДРЕВО <span class="close-btn" id="ancestry-close">✕</span></h2>
+    <div class="ancestry-body">
+      <div class="ancestry-graph" id="ancestry-graph"></div>
+      <div class="ancestry-detail" id="ancestry-detail"><div class="codex-empty">Кликните на организм слева</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="settings-panel" class="overlay-panel">
+  <div class="container" style="max-width:480px">
+    <h2>НАСТРОЙКИ <span class="close-btn" id="settings-close">✕</span></h2>
+    <div class="slider-row"><span class="lbl">Мутации</span><input type="range" id="set-mut" min="0" max="1" step="0.05" value="0.25"><span class="val" id="set-mut-val">0.25</span></div>
+    <div class="slider-row"><span class="lbl">Метаболизм</span><input type="range" id="set-metab" min="0.5" max="2.5" step="0.1" value="1"><span class="val" id="set-metab-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Растения</span><input type="range" id="set-plant" min="0" max="5" step="0.1" value="1"><span class="val" id="set-plant-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Мясо</span><input type="range" id="set-meat" min="0" max="5" step="0.1" value="1"><span class="val" id="set-meat-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Размножение</span><input type="range" id="set-repro" min="0.3" max="3" step="0.1" value="1"><span class="val" id="set-repro-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Лимит</span><input type="range" id="set-popmax" min="50" max="500" step="10" value="400"><span class="val" id="set-popmax-val">400</span></div>
+    <div class="slider-row"><span class="lbl">Кино</span><input type="checkbox" id="set-cine"><span class="val">30с</span></div>
+    <div style="font-size:10px;color:#6a8a72;margin-top:8px;text-align:center">Применяется мгновенно</div>
+  </div>
+</div>
+
+<div id="filter-panel" class="overlay-panel">
+  <div class="container" style="max-width:400px">
+    <h2>ФИЛЬТР <span class="close-btn" id="filter-close">✕</span></h2>
+    <div class="slider-row"><span class="lbl">По</span>
+      <select id="filter-type" style="flex:1;padding:8px;background:#0a140e;border:1px solid #1e3a28;color:#c8d5cc;border-radius:4px;min-height:36px">
+        <option value="">— Выключен —</option>
+        <option value="diet">Диета</option>
+        <option value="family">Семейство</option>
+        <option value="species">Вид</option>
+        <option value="tactic">Тактика</option>
+      </select></div>
+    <div class="slider-row"><span class="lbl">Значение</span>
+      <select id="filter-value" style="flex:1;padding:8px;background:#0a140e;border:1px solid #1e3a28;color:#c8d5cc;border-radius:4px;min-height:36px"></select></div>
   </div>
 </div>
 
@@ -72,21 +129,33 @@
 <div id="menu">
   <div class="box">
     <h1>R-EVOLUTION</h1>
-    <div class="sub">симулятор эволюции — режим наблюдателя</div>
+    <div class="sub">симулятор эволюции</div>
+
+    <div class="section">Пресет</div>
+    <select id="in-preset">
+      <option value="">— Свои настройки —</option>
+      <option value="balanced">Сбалансированный</option>
+      <option value="ocean">Океан</option>
+      <option value="jungle">Джунгли</option>
+      <option value="wasteland">Пустошь</option>
+      <option value="arctic">Ледник</option>
+      <option value="carnage">Бойня</option>
+    </select>
 
     <div class="section">Мир</div>
-    <div class="row"><span class="lbl">Организмов</span>
-      <input type="range" id="in-org" min="20" max="200" step="10" value="80">
-      <span class="val" id="in-org-val">80</span></div>
-    <div class="row"><span class="lbl">Максимум особей</span>
-      <input type="range" id="in-popmax" min="50" max="500" step="10" value="400">
-      <span class="val" id="in-popmax-val">400</span></div>
-    <label>Масштаб карты</label>
+    <div class="slider-row"><span class="lbl">Организмов</span><input type="range" id="in-org" min="20" max="200" step="10" value="80"><span class="val" id="in-org-val">80</span></div>
+    <div class="slider-row"><span class="lbl">Максимум</span><input type="range" id="in-popmax" min="50" max="500" step="10" value="400"><span class="val" id="in-popmax-val">400</span></div>
+    <label>Карта</label>
     <select id="in-map">
       <option value="small">Маленькая (1200×900)</option>
       <option value="medium" selected>Средняя (2000×1500)</option>
       <option value="large">Большая (3000×2200)</option>
+      <option value="custom">Своя…</option>
     </select>
+    <div id="in-map-custom" style="display:none">
+      <div class="slider-row"><span class="lbl">X (1200–12000)</span><input type="number" id="in-map-w" min="1200" max="12000" step="100" value="2000"><span class="val">px</span></div>
+      <div class="slider-row"><span class="lbl">Y (900–12000)</span><input type="number" id="in-map-h" min="900" max="12000" step="100" value="1500"><span class="val">px</span></div>
+    </div>
     <label>Климат</label>
     <select id="in-climate">
       <option value="normal">Нормальный</option>
@@ -94,44 +163,40 @@
       <option value="rainy">Сезон дождей</option>
       <option value="cold">Холод</option>
     </select>
-    <label>Тип ресурсов</label>
+    <label>Ресурсы</label>
     <select id="in-res">
-      <option value="mixed" selected>Смешанное</option>
-      <option value="plants">Смещение к растениям</option>
-      <option value="meat">Смещение к мясу</option>
+      <option value="mixed" selected>Смешанные</option>
+      <option value="plants">Растения</option>
+      <option value="meat">Мясо</option>
     </select>
 
     <div class="section">Растения</div>
-    <div class="row"><span class="lbl">Количество</span>
-      <input type="range" id="in-plant-amt" min="0" max="5" step="0.1" value="1">
-      <span class="val" id="in-plant-amt-val">1.0×</span></div>
-    <div class="row"><span class="lbl">Питательность</span>
-      <input type="range" id="in-plant-val" min="0.1" max="4" step="0.1" value="1">
-      <span class="val" id="in-plant-val-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Количество</span><input type="range" id="in-plant-amt" min="0" max="5" step="0.1" value="1"><span class="val" id="in-plant-amt-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Питательность</span><input type="range" id="in-plant-val" min="0.1" max="4" step="0.1" value="1"><span class="val" id="in-plant-val-val">1.0×</span></div>
 
     <div class="section">Мясо</div>
-    <div class="row"><span class="lbl">Количество</span>
-      <input type="range" id="in-meat-amt" min="0" max="5" step="0.1" value="1">
-      <span class="val" id="in-meat-amt-val">1.0×</span></div>
-    <div class="row"><span class="lbl">Питательность</span>
-      <input type="range" id="in-meat-val" min="0.1" max="4" step="0.1" value="1">
-      <span class="val" id="in-meat-val-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Количество</span><input type="range" id="in-meat-amt" min="0" max="5" step="0.1" value="1"><span class="val" id="in-meat-amt-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Питательность</span><input type="range" id="in-meat-val" min="0.1" max="4" step="0.1" value="1"><span class="val" id="in-meat-val-val">1.0×</span></div>
 
     <div class="section">Эволюция</div>
-    <div class="row"><span class="lbl">Мутации</span>
-      <input type="range" id="in-mut" min="0" max="1" step="0.05" value="0.25">
-      <span class="val" id="in-mut-val">0.25</span></div>
-    <div class="row"><span class="lbl">Жёсткость</span>
-      <input type="range" id="in-diff" min="0.5" max="2.5" step="0.1" value="1">
-      <span class="val" id="in-diff-val">1.0×</span></div>
-    <div class="row"><span class="lbl">Метаболизм</span>
-      <input type="range" id="in-metab" min="0.5" max="2.5" step="0.1" value="1">
-      <span class="val" id="in-metab-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Мутации</span><input type="range" id="in-mut" min="0" max="1" step="0.05" value="0.25"><span class="val" id="in-mut-val">0.25</span></div>
+    <div class="slider-row"><span class="lbl">Жёсткость</span><input type="range" id="in-diff" min="0.5" max="2.5" step="0.1" value="1"><span class="val" id="in-diff-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Метаболизм</span><input type="range" id="in-metab" min="0.5" max="2.5" step="0.1" value="1"><span class="val" id="in-metab-val">1.0×</span></div>
+
+    <div class="section">Организмы</div>
+    <div class="slider-row"><span class="lbl">Энергия</span><input type="range" id="in-start-energy" min="20" max="150" step="5" value="60"><span class="val" id="in-start-energy-val">60</span></div>
+    <div class="slider-row"><span class="lbl">Модулей</span><input type="range" id="in-org-modules" min="5" max="60" step="1" value="25"><span class="val" id="in-org-modules-val">25</span></div>
+    <div class="slider-row"><span class="lbl">Возраст ×</span><input type="range" id="in-age-mul" min="0.5" max="3" step="0.1" value="1"><span class="val" id="in-age-mul-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Жир ×</span><input type="range" id="in-fat-mul" min="0" max="3" step="0.1" value="1"><span class="val" id="in-fat-mul-val">1.0×</span></div>
+    <div class="slider-row"><span class="lbl">Размножение</span><input type="range" id="in-repro-speed" min="0.3" max="3" step="0.1" value="1"><span class="val" id="in-repro-speed-val">1.0×</span></div>
+
+    <div class="section">Экология</div>
+    <div class="slider-row"><span class="lbl">Порча еды</span><input type="range" id="in-spoil" min="0.3" max="3" step="0.1" value="1"><span class="val" id="in-spoil-val">1.0×</span></div>
 
     <button id="btn-start">▶ ЗАПУСТИТЬ</button>
   </div>
 </div>
 
-<script src="script.js" defer></script>
+<script src="script.js"></script>
 </body>
 </html>
