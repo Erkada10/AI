@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="description" content="R-Evolution — симулятор эволюции в браузере. Наблюдай, как организмы развиваются сами: мутации, хищники, травоядные, семейства, ауры и боевая система на уровне модулей.">
+<meta name="theme-color" content="#0a1525">
+<meta property="og:title" content="R-Evolution — симулятор эволюции">
+<meta property="og:description" content="Браузерный симулятор эволюции: организмы, модули, семейства, мутации, бой по модулям.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧬</text></svg>">
+<title>R-Evolution — Симулятор эволюции</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="world"></canvas>
+
+<div id="hud">
+  <div>Организмов: <span class="v" id="s-pop">0</span> <span id="s-popmax" style="color:#5a7fa0">/0</span></div>
+  <div>Поколение: <span class="v" id="s-gen">0</span></div>
+  <div>Время: <span class="v" id="s-time">0</span></div>
+  <div>Ср. прочность: <span class="v" id="s-hp">0%</span></div>
+  <div>Мутаций: <span class="v" id="s-mut">0</span></div>
+  <div>Хищники: <span class="v" id="s-carn">0</span></div>
+  <div>Травоядные: <span class="v" id="s-herb">0</span></div>
+  <div>Всеядные: <span class="v" id="s-omni">0</span></div>
+  <div>Еда: <span class="v" id="s-food">0</span></div>
+  <div>Чемпион: <span class="v" id="s-champ">—</span></div>
+  <div>Сезон: <span class="v" id="s-season">—</span></div>
+</div>
+
+<div id="follow-panel">
+  <span class="close" id="follow-close">✕</span>
+  <h3 id="f-title">Организм</h3>
+  <div id="f-info"></div>
+  <div id="f-mods" style="margin-top:6px"></div>
+  <div style="font-size:10px;color:#5a7fa0;margin-top:6px;text-align:center">наведи на модуль — подсветится на теле</div>
+</div>
+
+<div class="legend">
+  <span style="background:#4f4"></span>целое
+  <span style="background:#fa4"></span>повреждено
+  <span style="background:#f44"></span>сломано
+</div>
+
+<div id="controls">
+  <button id="btn-pause" title="Пауза">⏸</button>
+  <button id="btn-speed1" class="active">×1</button>
+  <button id="btn-speed2">×2</button>
+  <button id="btn-speed4">×4</button>
+  <button id="btn-catalog" title="Каталог модулей">📖</button>
+  <button id="btn-leaders" title="Таблица лидеров">🏆</button>
+  <button id="btn-restart" title="Рестарт">↻</button>
+</div>
+
+<div id="catalog-panel" class="overlay-panel">
+  <div class="container">
+    <h2>КАТАЛОГ R-МОДУЛЕЙ <span class="close-btn" data-close="catalog">✕</span></h2>
+    <div id="catalog-content"></div>
+  </div>
+</div>
+
+<div id="leaderboard-panel" class="overlay-panel">
+  <div class="container">
+    <h2>ТАБЛИЦА ЛИДЕРОВ <span class="close-btn" data-close="leaderboard">✕</span></h2>
+    <div id="leaderboard-content"></div>
+  </div>
+</div>
+
+<div id="mod-tooltip"></div>
+
+<div id="menu">
+  <div class="box">
+    <h1>R-EVOLUTION</h1>
+    <div class="sub">симулятор эволюции — режим наблюдателя</div>
+
+    <div class="section">Мир</div>
+    <div class="row"><span class="lbl">Организмов</span>
+      <input type="range" id="in-org" min="20" max="200" step="10" value="80">
+      <span class="val" id="in-org-val">80</span></div>
+    <div class="row"><span class="lbl">Максимум особей</span>
+      <input type="range" id="in-popmax" min="50" max="500" step="10" value="400">
+      <span class="val" id="in-popmax-val">400</span></div>
+    <label>Масштаб карты</label>
+    <select id="in-map">
+      <option value="small">Маленькая (1200×900)</option>
+      <option value="medium" selected>Средняя (2000×1500)</option>
+      <option value="large">Большая (3000×2200)</option>
+    </select>
+    <label>Климат</label>
+    <select id="in-climate">
+      <option value="normal">Нормальный</option>
+      <option value="drought">Засуха</option>
+      <option value="rainy">Сезон дождей</option>
+      <option value="cold">Холод</option>
+    </select>
+    <label>Тип ресурсов</label>
+    <select id="in-res">
+      <option value="mixed" selected>Смешанное</option>
+      <option value="plants">Смещение к растениям</option>
+      <option value="meat">Смещение к мясу</option>
+    </select>
+
+    <div class="section">Растения</div>
+    <div class="row"><span class="lbl">Количество</span>
+      <input type="range" id="in-plant-amt" min="0" max="5" step="0.1" value="1">
+      <span class="val" id="in-plant-amt-val">1.0×</span></div>
+    <div class="row"><span class="lbl">Питательность</span>
+      <input type="range" id="in-plant-val" min="0.1" max="4" step="0.1" value="1">
+      <span class="val" id="in-plant-val-val">1.0×</span></div>
+
+    <div class="section">Мясо</div>
+    <div class="row"><span class="lbl">Количество</span>
+      <input type="range" id="in-meat-amt" min="0" max="5" step="0.1" value="1">
+      <span class="val" id="in-meat-amt-val">1.0×</span></div>
+    <div class="row"><span class="lbl">Питательность</span>
+      <input type="range" id="in-meat-val" min="0.1" max="4" step="0.1" value="1">
+      <span class="val" id="in-meat-val-val">1.0×</span></div>
+
+    <div class="section">Эволюция</div>
+    <div class="row"><span class="lbl">Мутации</span>
+      <input type="range" id="in-mut" min="0" max="1" step="0.05" value="0.25">
+      <span class="val" id="in-mut-val">0.25</span></div>
+    <div class="row"><span class="lbl">Жёсткость</span>
+      <input type="range" id="in-diff" min="0.5" max="2.5" step="0.1" value="1">
+      <span class="val" id="in-diff-val">1.0×</span></div>
+    <div class="row"><span class="lbl">Метаболизм</span>
+      <input type="range" id="in-metab" min="0.5" max="2.5" step="0.1" value="1">
+      <span class="val" id="in-metab-val">1.0×</span></div>
+
+    <button id="btn-start">▶ ЗАПУСТИТЬ</button>
+  </div>
+</div>
+
+<script src="script.js" defer></script>
+</body>
+</html>
