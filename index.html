@@ -2,24 +2,43 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>Простая бродилка</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #1a1a2e; color: white; font-family: sans-serif; }
-    #game { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
+    body { margin: 0; overflow: hidden; background: #1a1a2e; color: white; font-family: sans-serif;
+           touch-action: none; -webkit-user-select: none; user-select: none; }
     canvas { display: block; }
     #ui { position: absolute; top: 10px; left: 10px; pointer-events: none; }
     .panel {
-      background: rgba(0,0,0,0.6); padding: 12px; border-radius: 8px;
-      max-width: 320px; margin-bottom: 10px;
+      background: rgba(0,0,0,0.7); padding: 12px; border-radius: 8px;
+      max-width: 320px; margin-bottom: 10px; pointer-events: auto;
     }
     input, button {
-      padding: 6px 10px; border: none; border-radius: 4px;
-      background: #fff; color: #000; font-size: 14px; width: 100%; box-sizing: border-box;
-      margin-top: 6px;
+      padding: 8px 10px; border: none; border-radius: 4px;
+      font-size: 15px; width: 100%; box-sizing: border-box; margin-top: 6px;
     }
+    input { background: #fff; color: #000; }
     button { cursor: pointer; background: #e94560; color: white; }
     button:hover { background: #d0354d; }
     #status { margin-top: 8px; font-size: 13px; color: #ccc; }
+    /* Кнопка выхода в меню */
+    #btn-exit {
+      position: absolute; top: 10px; right: 10px;
+      width: auto; padding: 8px 16px; font-size: 14px;
+      display: none; pointer-events: auto;
+    }
+    /* Джойстик */
+    #joystick {
+      position: absolute; bottom: 30px; left: 30px;
+      width: 120px; height: 120px; border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      display: none; touch-action: none;
+    }
+    #stick {
+      position: absolute; left: 35px; top: 35px;
+      width: 50px; height: 50px; border-radius: 50%;
+      background: rgba(255,255,255,0.5);
+    }
   </style>
 </head>
 <body>
@@ -30,7 +49,7 @@
       <button id="btn-create">Создать комнату</button>
       <div style="margin-top:12px;">
         <label>Код комнаты:</label>
-        <input type="text" id="room-code" placeholder="Код (например, ABC12)" />
+        <input type="text" id="room-code" placeholder="Код комнаты" />
         <button id="btn-join">Присоединиться</button>
       </div>
       <div id="status"></div>
@@ -39,15 +58,17 @@
     <div id="game-ui" class="panel" style="display:none;">
       <h3>Игра</h3>
       <p id="room-info">Комната: —</p>
-      <p>Управление: WASD / стрелки</p>
-      <button id="btn-leave">Выйти в лобби</button>
+      <p style="font-size:13px;">На компьютере: WASD / стрелки. На телефоне — джойстик слева.</p>
     </div>
   </div>
-  <div id="game"><canvas id="c"></canvas></div>
+
+  <button id="btn-exit">В меню</button>
+  <div id="joystick"><div id="stick"></div></div>
 
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script>
-    const canvas = document.getElementById('c');
+    const canvas = document.createElement('canvas');
+    document.body.prepend(canvas);
     const ctx = canvas.getContext('2d');
 
     function resize() {
@@ -69,20 +90,61 @@
     }
 
     // --- Игрок ---
-    let player = { x: 0, y: 0, color: `hsl(${Math.random()*360},70%,50%)` };
+    let player = { x: 0, y: 0, color: `hsl(${Math.floor(Math.random()*360)},70%,50%)` };
     const speed = 4;
 
+    // Управление с клавиатуры
     const keys = {};
     window.addEventListener('keydown', e => keys[e.code] = true);
     window.addEventListener('keyup', e => keys[e.code] = false);
 
-    function updatePlayer() {
-      if (keys['KeyW'] || keys['ArrowUp']) player.y -= speed;
-      if (keys['KeyS'] || keys['ArrowDown']) player.y += speed;
-      if (keys['KeyA'] || keys['ArrowLeft']) player.x -= speed;
-      if (keys['KeyD'] || keys['ArrowRight']) player.x += speed;
+    // Управление с джойстика
+    const joy = document.getElementById('joystick');
+    const stick = document.getElementById('stick');
+    let joyActive = false, joyDX = 0, joyDY = 0, joyTouchId = null;
 
-      // Ограничение мира
+    joy.addEventListener('touchstart', e => {
+      e.preventDefault();
+      joyActive = true;
+      joyTouchId = e.changedTouches[0].identifier;
+      updateJoy(e.changedTouches[0]);
+    });
+    joy.addEventListener('touchmove', e => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier === joyTouchId) updateJoy(t);
+      }
+    });
+    joy.addEventListener('touchend', endJoy);
+    joy.addEventListener('touchcancel', endJoy);
+
+    function updateJoy(touch) {
+      const rect = joy.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = touch.clientX - cx, dy = touch.clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      const max = rect.width / 2;
+      if (dist > max) { dx = dx / dist * max; dy = dy / dist * max; }
+      stick.style.transform = `translate(${dx}px, ${dy}px)`;
+      joyDX = dx / max;
+      joyDY = dy / max;
+    }
+
+    function endJoy() {
+      joyActive = false; joyDX = 0; joyDY = 0; joyTouchId = null;
+      stick.style.transform = '';
+    }
+
+    function updatePlayer() {
+      let dx = 0, dy = 0;
+      if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+      if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+      if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+      if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+      if (joyActive) { dx += joyDX; dy += joyDY; }
+      player.x += dx * speed;
+      player.y += dy * speed;
       player.x = Math.max(-worldSize/2, Math.min(worldSize/2, player.x));
       player.y = Math.max(-worldSize/2, Math.min(worldSize/2, player.y));
     }
@@ -90,7 +152,8 @@
     // --- Мультиплеер ---
     let peer = null;
     let conn = null;
-    let otherPlayers = {}; // id -> {x,y,color}
+    let otherPlayers = {};
+    let sendTimer = null;
 
     function setStatus(text, color = '#ccc') {
       const el = document.getElementById('status');
@@ -98,39 +161,42 @@
       el.style.color = color;
     }
 
-    async function createRoom() {
+    function createRoom() {
       peer = new Peer();
       peer.on('open', id => {
-        setStatus(`Ваш ID: ${id} (покажите друзьям)`, '#e94560');
         document.getElementById('room-code').value = id;
+        setStatus(`Ваш код: ${id} — скажите его друзьям`, '#e94560');
       });
-      peer.on('connection', c => {
-        conn = c;
-        handleConnection(c);
-      });
+      peer.on('connection', c => handleConnection(c));
+      peer.on('error', err => setStatus('Ошибка: ' + err.type, 'red'));
     }
 
-    async function joinRoom(id) {
+    function joinRoom(id) {
       peer = new Peer();
       peer.on('open', () => {
         conn = peer.connect(id);
-        handleConnection(conn);
+        conn.on('open', () => handleConnection(conn));
+        conn.on('error', () => setStatus('Не удалось подключиться', 'red'));
       });
-      peer.on('error', err => setStatus('Ошибка соединения', 'red'));
+      peer.on('error', err => setStatus('Ошибка: ' + err.type, 'red'));
     }
 
     function handleConnection(c) {
+      conn = c;
       c.on('data', data => {
         if (data.type === 'pos') {
           otherPlayers[c.peer] = { x: data.x, y: data.y, color: data.color };
         }
       });
+      c.on('close', () => {
+        delete otherPlayers[c.peer];
+      });
 
       setStatus('Подключено!', '#4ade80');
       switchUI(false);
 
-      // Отправка позиции
-      setInterval(() => {
+      clearInterval(sendTimer);
+      sendTimer = setInterval(() => {
         if (conn && conn.open) {
           conn.send({ type: 'pos', x: player.x, y: player.y, color: player.color });
         }
@@ -140,7 +206,21 @@
     function switchUI(inLobby) {
       document.getElementById('lobby').style.display = inLobby ? 'block' : 'none';
       document.getElementById('game-ui').style.display = inLobby ? 'none' : 'block';
-      if (!inLobby) document.getElementById('room-info').textContent = 'Комната: ' + (conn ? conn.peer : '—');
+      document.getElementById('btn-exit').style.display = inLobby ? 'none' : 'block';
+      joy.style.display = inLobby ? 'none' : 'block';
+      if (!inLobby) {
+        document.getElementById('room-info').textContent = 'Комната: ' + (conn ? conn.peer : '—');
+      }
+    }
+
+    function exitToMenu() {
+      clearInterval(sendTimer);
+      if (conn) conn.close();
+      if (peer) peer.destroy();
+      conn = null; peer = null; otherPlayers = {};
+      player.x = 0; player.y = 0;
+      setStatus('');
+      switchUI(true);
     }
 
     document.getElementById('btn-create').onclick = () => createRoom();
@@ -149,13 +229,7 @@
       if (!code) return setStatus('Введите код комнаты', 'red');
       joinRoom(code);
     };
-    document.getElementById('btn-leave').onclick = () => {
-      conn?.close();
-      peer?.destroy();
-      conn = null; peer = null; otherPlayers = {};
-      switchUI(true);
-      setStatus('');
-    };
+    document.getElementById('btn-exit').onclick = exitToMenu;
 
     // --- Отрисовка ---
     function draw() {
@@ -168,7 +242,6 @@
       ctx.save();
       ctx.translate(camX, camY);
 
-      // Мир
       for (const t of tiles) {
         ctx.fillStyle = t.type === 'tree' ? '#228B22' : (t.type === 'bush' ? '#32CD32' : '#2E8B57');
         ctx.fillRect(t.x * tileSize, t.y * tileSize, tileSize, tileSize);
@@ -178,17 +251,14 @@
         }
       }
 
-      // Другие игроки
-      for (const [id, p] of Object.entries(otherPlayers)) {
+      for (const p of Object.values(otherPlayers)) {
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(p.x, p.y, 12, 0, Math.PI*2);
         ctx.fill();
-        // обводка, чтобы было видно
         ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
       }
 
-      // Свой игрок
       ctx.fillStyle = player.color;
       ctx.beginPath();
       ctx.arc(player.x, player.y, 12, 0, Math.PI*2);
@@ -196,8 +266,6 @@
       ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
 
       ctx.restore();
-
-      requestAnimationFrame(draw);
     }
 
     function gameLoop() {
