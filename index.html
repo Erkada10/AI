@@ -8,18 +8,21 @@
     html, body { margin:0; height:100%; overflow:hidden; background:#1a1a2e; color:#fff;
                  font-family:sans-serif; touch-action:none; -webkit-user-select:none; user-select:none; }
     canvas { display:block; position:fixed; inset:0; }
-    #panel { position:fixed; top:58px; left:14px; background:rgba(0,0,0,.78); padding:14px;
-             border-radius:10px; max-width:300px; width:calc(100% - 28px); box-sizing:border-box; }
+    #panel { position:fixed; top:58px; left:14px; background:rgba(0,0,0,.82); padding:14px;
+             border-radius:10px; max-width:320px; width:calc(100% - 28px); max-height:70vh;
+             overflow-y:auto; box-sizing:border-box; }
     #btn-toggle { position:fixed; top:14px; left:14px; z-index:5; padding:8px 14px; border:none;
                   border-radius:8px; background:#e94560; color:#fff; font-size:18px; cursor:pointer; }
-    input, button.f { padding:10px; border:none; border-radius:6px; font-size:15px;
+    input, textarea, button.f { padding:10px; border:none; border-radius:6px; font-size:13px;
                       width:100%; box-sizing:border-box; margin-top:8px; }
     input { background:#fff; color:#000; }
+    textarea { background:#0e2a1e; color:#4ade80; resize:none; font-family:monospace;
+               height:70px; word-break:break-all; }
     button.f { cursor:pointer; background:#e94560; color:#fff; }
     #btn-exit { background:#555 !important; }
     #status { margin-top:8px; font-size:13px; color:#ccc; min-height:16px; }
-    #code-line { display:none; margin-top:8px; font-size:22px; font-weight:bold;
-                 letter-spacing:3px; color:#4ade80; }
+    h3 { margin:4px 0 4px; } h4 { margin:10px 0 0; color:#e94560; }
+    .hint { font-size:12px; color:#999; margin:6px 0 0; }
     #joystick { position:fixed; bottom:34px; left:24px; width:140px; height:140px; border-radius:50%;
                 background:rgba(255,255,255,.15); display:none; touch-action:none; }
     #stick { position:absolute; left:45px; top:45px; width:50px; height:50px; border-radius:50%;
@@ -29,31 +32,45 @@
 <body>
   <button id="btn-toggle">✕</button>
   <div id="panel">
-    <h3 style="margin:4px 0 8px;">Бродилка</h3>
-    <button class="f" id="btn-create">Создать комнату</button>
-    <input id="room-code" placeholder="Код комнаты (если есть)">
-    <button class="f" id="btn-join">Присоединиться</button>
+    <h3>Бродилка</h3>
+
+    <div id="host-section">
+      <button class="f" id="btn-create">Создать игру (ты — ведущий)</button>
+      <div id="host-box" style="display:none;">
+        <h4>Шаг 1 — код приглашения</h4>
+        <textarea id="invite-out" readonly></textarea>
+        <button class="f" id="btn-copy-invite">Скопировать код</button>
+        <p class="hint">Скинь этот код другу в мессенджер.</p>
+        <h4>Шаг 2 — код ответа друга</h4>
+        <textarea id="answer-in" placeholder="Сюда вставь код, который пришлёт друг"></textarea>
+        <button class="f" id="btn-accept">Подключить друга</button>
+        <p class="hint">Друг пришлёт свой код — вставь его сюда и нажми кнопку. Для следующего друга нажми «Ещё приглашение».</p>
+      </div>
+    </div>
+
+    <div id="guest-section">
+      <h4>Присоединиться к игре</h4>
+      <textarea id="invite-in" placeholder="Вставь сюда код приглашения от друга"></textarea>
+      <button class="f" id="btn-join">Подключиться</button>
+      <div id="guest-box" style="display:none;">
+        <h4>Шаг 2 — код ответа</h4>
+        <textarea id="answer-out" readonly></textarea>
+        <button class="f" id="btn-copy-answer">Скопировать ответ</button>
+        <p class="hint">Отправь этот код другу (ведущему) — он вставит его у себя, и вы в игре.</p>
+      </div>
+    </div>
+
+    <button class="f" id="btn-more" style="display:none;">Ещё приглашение</button>
     <button class="f" id="btn-exit" style="display:none;">Выйти из игры</button>
     <div id="status"></div>
-    <div id="code-line"></div>
-    <p style="font-size:12px;color:#999;margin:8px 0 0;">Клавиши: WASD / стрелки. На телефоне — джойстик слева внизу.</p>
+    <p class="hint">Клавиши: WASD / стрелки. На телефоне — джойстик слева внизу.</p>
   </div>
   <div id="joystick"><div id="stick"></div></div>
 
-  <!-- Два CDN: если первый не загрузится, пробуем второй -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
-  <script>
-    if (typeof Peer === 'undefined') {
-      var s = document.createElement('script');
-      s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
-      document.head.appendChild(s);
-    }
-  </script>
   <script>
     const canvas = document.createElement('canvas');
     document.body.prepend(canvas);
     const ctx = canvas.getContext('2d');
-
     function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
     addEventListener('resize', resize); resize();
 
@@ -66,9 +83,9 @@
       }
 
     // --- Игрок ---
+    const myId = Math.random().toString(36).slice(2, 8);
     let player = { x: 0, y: 0, color: `hsl(${Math.floor(Math.random()*360)},70%,50%)` };
     const speed = 4;
-
     const keys = {};
     addEventListener('keydown', e => keys[e.code] = true);
     addEventListener('keyup', e => keys[e.code] = false);
@@ -77,16 +94,13 @@
     const joy = document.getElementById('joystick');
     const stick = document.getElementById('stick');
     let joyDX = 0, joyDY = 0;
-
     joy.addEventListener('pointerdown', e => { joy.setPointerCapture(e.pointerId); moveJoy(e); });
     joy.addEventListener('pointermove', e => { if (joy.hasPointerCapture(e.pointerId)) moveJoy(e); });
     joy.addEventListener('pointerup', resetJoy);
     joy.addEventListener('pointercancel', resetJoy);
-
     function moveJoy(e) {
       const r = joy.getBoundingClientRect();
-      const cx = r.left + r.width/2, cy = r.top + r.height/2;
-      let dx = e.clientX - cx, dy = e.clientY - cy;
+      let dx = e.clientX - (r.left + r.width/2), dy = e.clientY - (r.top + r.height/2);
       const dist = Math.hypot(dx, dy), max = r.width/2;
       if (dist > max) { dx = dx/dist*max; dy = dy/dist*max; }
       stick.style.transform = `translate(${dx}px,${dy}px)`;
@@ -96,134 +110,146 @@
 
     function updatePlayer() {
       let dx = 0, dy = 0;
-      if (keys['KeyW'] || keys['ArrowUp'] || keys['KeyЦ']) dy -= 1;
-      if (keys['KeyS'] || keys['ArrowDown'] || keys['KeyЫ']) dy += 1;
-      if (keys['KeyA'] || keys['ArrowLeft'] || keys['KeyФ']) dx -= 1;
-      if (keys['KeyD'] || keys['ArrowRight'] || keys['KeyВ']) dx += 1;
+      if (keys['KeyW'] || keys['ArrowUp'])    dy -= 1;
+      if (keys['KeyS'] || keys['ArrowDown'])  dy += 1;
+      if (keys['KeyA'] || keys['ArrowLeft'])  dx -= 1;
+      if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
       if (joyDX || joyDY) { dx += joyDX; dy += joyDY; }
       player.x = Math.max(-worldSize/2, Math.min(worldSize/2, player.x + dx*speed));
       player.y = Math.max(-worldSize/2, Math.min(worldSize/2, player.y + dy*speed));
     }
 
-    // --- Сеть ---
-    let peer = null, isHost = false, conns = [], otherPlayers = {}, sendTimer = null;
-    const PREFIX = 'brodilka-';
+    // --- Связь без серверов: обмен кодами вручную ---
+    const rtcConfig = { iceServers: [
+      { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+      { urls: 'stun:stun.cloudflare.com:3478' }
+    ]};
+    let isHost = false, channels = [], otherPlayers = {}, sendTimer = null, pendingPC = null;
 
     const statusEl = document.getElementById('status');
-    const codeEl = document.getElementById('code-line');
     function setStatus(t, c = '#ccc') { statusEl.textContent = t; statusEl.style.color = c; }
-    function showCode(code) { codeEl.textContent = code; codeEl.style.display = 'block'; }
-    function hideCode() { codeEl.style.display = 'none'; codeEl.textContent = ''; }
 
-    function netReady() {
-      if (typeof Peer === 'undefined') {
-        setStatus('Не удалось загрузить библиотеку связи. Проверь интернет и обнови страницу.', 'red');
-        return false;
-      }
-      return true;
-    }
+    function encode(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
+    function decode(s)   { return JSON.parse(decodeURIComponent(escape(atob(s.replace(/\s+/g, ''))))); }
 
-    function makeRoomCode() {
-      const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let s = '';
-      for (let i = 0; i < 5; i++) s += abc[Math.floor(Math.random()*abc.length)];
-      return s;
-    }
-
-    function createRoom() {
-      if (!netReady()) return;
-      cleanup();
-      isHost = true;
-      const code = makeRoomCode();
-      setStatus('Соединяюсь с сервером связи…');
-      peer = new Peer(PREFIX + code);
-      peer.on('open', () => {
-        showCode(code);
-        setStatus('Код комнаты (скажи друзьям):');
-        startGame();
+    function waitForIce(pc) {
+      return new Promise(res => {
+        if (pc.iceGatheringState === 'complete') return res();
+        const t = setTimeout(res, 8000); // не зависаем, если сеть странная
+        pc.addEventListener('icegatheringstatechange', () => {
+          if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); }
+        });
       });
-      peer.on('connection', c => handleConnection(c));
-      peer.on('error', e => setStatus('Ошибка: ' + e.type, 'red'));
-      failIfSlow();
     }
 
-    function joinRoom() {
-      if (!netReady()) return;
-      const code = document.getElementById('room-code').value.trim().toUpperCase();
-      if (!code) return setStatus('Введите код комнаты', 'red');
-      cleanup();
-      isHost = false;
-      setStatus('Подключаюсь к комнате ' + code + '…');
-      peer = new Peer();
-      peer.on('open', () => {
-        const c = peer.connect(PREFIX + code, { reliable: true });
-        c.on('open', () => { handleConnection(c); startGame(); });
-        c.on('error', () => setStatus('Не удалось подключиться. Проверь код.', 'red'));
-        setTimeout(() => { if (!conns.length) setStatus('Комната не отвечает. Код верный? Создатель в игре?', 'red'); }, 8000);
-      });
-      peer.on('error', e => setStatus('Ошибка: ' + e.type + ' (комната не найдена?)', 'red'));
-    }
-
-    function handleConnection(c) {
-      conns.push(c);
-      c.on('data', data => {
-        if (data.type === 'pos') {
-          otherPlayers[data.id] = { x: data.x, y: data.y, color: data.color };
-          // хост пересылает позиции дальше — чтобы видели все
-          if (isHost) for (const o of conns) if (o !== c && o.open) o.send(data);
-        } else if (data.type === 'left') {
-          delete otherPlayers[data.id];
-          if (isHost) for (const o of conns) if (o.open) o.send(data);
+    function setupChannel(ch) {
+      ch.onopen = () => { setStatus('Соединение установлено!', '#4ade80'); startGame(); };
+      ch.onmessage = e => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'pos') {
+          otherPlayers[d.id] = { x: d.x, y: d.y, color: d.color };
+          ch._peerId = d.id;
+          if (isHost) broadcast(d, ch); // ведущий пересылает позиции остальным
+        } else if (d.type === 'left') {
+          delete otherPlayers[d.id];
+          if (isHost) broadcast(d, ch);
         }
-      });
-      c.on('close', () => {
-        conns = conns.filter(x => x !== c);
-        delete otherPlayers[c.peer];
-      });
+      };
+      ch.onclose = () => {
+        channels = channels.filter(x => x !== ch);
+        if (ch._peerId) delete otherPlayers[ch._peerId];
+      };
+      channels.push(ch);
     }
 
-    function broadcast(msg) {
-      for (const c of conns) if (c.open) c.send(msg);
+    function broadcast(msg, except) {
+      for (const c of channels) if (c !== except && c.readyState === 'open') c.send(JSON.stringify(msg));
     }
 
-    let timer;
-    function failIfSlow() {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (peer && !peer.open) setStatus('Сервер связи не отвечает. Проверь интернет и попробуй ещё раз.', 'red');
-      }, 10000);
+    // Ведущий: создать приглашение
+    async function createInvite() {
+      isHost = true;
+      setStatus('Готовлю код приглашения…');
+      const pc = new RTCPeerConnection(rtcConfig);
+      setupChannel(pc.createDataChannel('game'));
+      pendingPC = pc;
+      await pc.setLocalDescription(await pc.createOffer());
+      await waitForIce(pc);
+      document.getElementById('invite-out').value = encode(pc.localDescription);
+      document.getElementById('host-box').style.display = 'block';
+      setStatus('Скопируй код и отправь другу');
+    }
+
+    // Ведущий: принять ответ друга
+    async function acceptAnswer() {
+      try {
+        const ans = decode(document.getElementById('answer-in').value);
+        await pendingPC.setRemoteDescription(ans);
+        pendingPC = null;
+        document.getElementById('host-box').style.display = 'none';
+        document.getElementById('answer-in').value = '';
+        setStatus('Подключаю друга…');
+      } catch (e) { setStatus('Код ответа повреждён — попроси друга прислать его целиком', 'red'); }
+    }
+
+    // Гость: подключиться по приглашению
+    async function joinInvite() {
+      try {
+        const off = decode(document.getElementById('invite-in').value);
+        const pc = new RTCPeerConnection(rtcConfig);
+        pc.ondatachannel = e => setupChannel(e.channel);
+        await pc.setRemoteDescription(off);
+        await pc.setLocalDescription(await pc.createAnswer());
+        await waitForIce(pc);
+        document.getElementById('answer-out').value = encode(pc.localDescription);
+        document.getElementById('guest-box').style.display = 'block';
+        document.getElementById('guest-section').querySelector('h4').style.display = 'none';
+        document.getElementById('invite-in').style.display = 'none';
+        document.getElementById('btn-join').style.display = 'none';
+        setStatus('Отправь этот код другу — и вы в игре');
+      } catch (e) { setStatus('Код приглашения повреждён — попроси друга прислать его целиком', 'red'); }
+    }
+
+    function copyField(id, btn) {
+      navigator.clipboard.writeText(document.getElementById(id).value)
+        .then(() => { btn.textContent = 'Скопировано!'; setTimeout(() => btn.textContent = btn.dataset.t || btn.textContent, 1500); })
+        .catch(() => setStatus('Не скопировалось — выдели текст руками', 'red'));
     }
 
     function startGame() {
       setPanel(false);
       joy.style.display = 'block';
+      document.getElementById('btn-exit').style.display = 'block';
+      if (isHost) document.getElementById('btn-more').style.display = 'block';
       clearInterval(sendTimer);
       sendTimer = setInterval(() => {
-        if (peer && peer.open) broadcast({ type:'pos', id: peer.id, x: player.x, y: player.y, color: player.color });
+        const msg = { type:'pos', id: myId, x: player.x, y: player.y, color: player.color };
+        broadcast(msg);
       }, 100);
     }
 
-    function cleanup() {
-      clearInterval(sendTimer);
-      for (const c of conns) { try { c.send({ type:'left', id: peer?.id }); c.close(); } catch(e){} }
-      if (peer) try { peer.destroy(); } catch(e){}
-      conns = []; otherPlayers = {}; peer = null;
-      player.x = 0; player.y = 0;
-    }
-
     function exitToMenu() {
-      cleanup();
+      clearInterval(sendTimer);
+      for (const c of channels) { try { c.send(JSON.stringify({type:'left', id: myId})); c.close(); } catch(e){} }
+      if (pendingPC) try { pendingPC.close(); } catch(e){}
+      channels = []; otherPlayers = {}; pendingPC = null; isHost = false;
+      player.x = 0; player.y = 0;
       setPanel(true);
       joy.style.display = 'none';
-      hideCode();
+      document.getElementById('btn-exit').style.display = 'none';
+      document.getElementById('btn-more').style.display = 'none';
+      document.getElementById('host-box').style.display = 'none';
+      document.getElementById('guest-box').style.display = 'none';
+      document.getElementById('invite-out').value = '';
+      document.getElementById('answer-in').value = '';
+      document.getElementById('invite-in').value = '';
+      document.getElementById('invite-in').style.display = 'block';
+      document.getElementById('btn-join').style.display = 'block';
+      document.getElementById('guest-section').querySelector('h4').style.display = 'block';
       setStatus('');
     }
 
-    document.getElementById('btn-create').onclick = createRoom;
-    document.getElementById('btn-join').onclick = joinRoom;
-    document.getElementById('btn-exit').onclick = exitToMenu;
-
-    // --- Меню: убирается и показывается по кнопке ---
+    // --- Меню убирается по кнопке ---
     const panel = document.getElementById('panel');
     const btnToggle = document.getElementById('btn-toggle');
     function setPanel(visible) {
@@ -232,13 +258,27 @@
     }
     btnToggle.onclick = () => setPanel(panel.style.display === 'none');
 
+    const btnCI = document.getElementById('btn-copy-invite');
+    const btnCA = document.getElementById('btn-copy-answer');
+    btnCI.dataset.t = btnCI.textContent; btnCA.dataset.t = btnCA.textContent;
+    btnCI.onclick = () => copyField('invite-out', btnCI);
+    btnCA.onclick = () => copyField('answer-out', btnCA);
+    document.getElementById('btn-create').onclick = createInvite;
+    document.getElementById('btn-accept').onclick = acceptAnswer;
+    document.getElementById('btn-join').onclick = joinInvite;
+    document.getElementById('btn-more').onclick = () => {
+      document.getElementById('btn-more').style.display = 'none';
+      setPanel(true);
+      createInvite();
+    };
+    document.getElementById('btn-exit').onclick = exitToMenu;
+
     // --- Отрисовка ---
     function draw() {
       ctx.fillStyle = '#111';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       ctx.translate(-player.x + canvas.width/2, -player.y + canvas.height/2);
-
       for (const t of tiles) {
         ctx.fillStyle = t.type === 'tree' ? '#228B22' : (t.type === 'bush' ? '#32CD32' : '#2E8B57');
         ctx.fillRect(t.x*tileSize, t.y*tileSize, tileSize, tileSize);
@@ -257,7 +297,6 @@
       ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
       ctx.restore();
     }
-
     (function loop() { updatePlayer(); draw(); requestAnimationFrame(loop); })();
   </script>
 </body>
